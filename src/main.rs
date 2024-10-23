@@ -1,5 +1,7 @@
-use axum::{self, http::StatusCode, routing::get, Router};
+use axum::{self, extract::ConnectInfo, http::StatusCode, routing::get, Router};
+use axum_extra::{headers::Cookie, TypedHeader};
 use std::io::Write;
+use std::net::SocketAddr;
 use std::process::Command;
 use std::{fs::File, io::Read};
 
@@ -24,38 +26,53 @@ fn get_birdc_output() -> Result<String, std::io::Error> {
     Ok(stdout)
 }
 
-async fn ospf_status() -> (StatusCode, String) {
-    match get_birdc_output() {
-        Ok(output) => (StatusCode::OK, output),
-        Err(e) => {
-            println!("Failed to get birdc output: {}", e);
-            let mut file_content = String::new();
-            match File::open("output.txt") {
-                Ok(mut file) => match file.read_to_string(&mut file_content) {
-                    Ok(_) => {
-                        return (StatusCode::OK, file_content);
+async fn ospf_status(
+    TypedHeader(cookie): TypedHeader<Cookie>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+) -> (StatusCode, String) {
+    if let Some(auth) = cookie.get("auth") {
+        if auth == "password" {
+            match get_birdc_output() {
+                Ok(output) => return (StatusCode::OK, output),
+                Err(e) => {
+                    println!("Failed to get birdc output: {}", e);
+                    let mut file_content = String::new();
+                    match File::open("output.txt") {
+                        Ok(mut file) => match file.read_to_string(&mut file_content) {
+                            Ok(_) => {
+                                return (StatusCode::OK, file_content);
+                            }
+                            Err(read_err) => {
+                                println!("Failed to read from file: {}", read_err);
+                            }
+                        },
+                        Err(open_err) => {
+                            println!("Failed to open file: {}", open_err);
+                        }
                     }
-                    Err(read_err) => {
-                        println!("Failed to read from file: {}", read_err);
-                    }
-                },
-                Err(open_err) => {
-                    println!("Failed to open file: {}", open_err);
+                    return (StatusCode::INTERNAL_SERVER_ERROR, String::new());
                 }
             }
-            (StatusCode::INTERNAL_SERVER_ERROR, String::new())
         }
     }
+    println!("Authentication failed for IP: {}", addr);
+    (
+        StatusCode::UNAUTHORIZED,
+        "Authentication failed".to_string(),
+    )
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Starting server on");
 
-    let app = Router::new().route("/", get(ospf_status));
+    let app = Router::new()
+        .route("/", get(ospf_status))
+        .into_make_service_with_connect_info::<SocketAddr>();
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:55300").await?;
-    axum::serve(listener, app.into_make_service()).await?;
+    axum::serve(listener, app).await?;
+    
 
     Ok(())
 }

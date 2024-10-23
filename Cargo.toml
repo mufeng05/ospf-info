@@ -5,4 +5,6 @@ edition = "2021"
 
 [dependencies]
 axum = "0.7.7"
+axum-extra = { version = "0.9.4", features = ["cookie", "typed-header"] }
+headers = "0.4.0"
 tokio = { version = "1.41.0", features = ["full"] }
