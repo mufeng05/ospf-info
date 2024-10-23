@@ -5,7 +5,7 @@ use std::process::Command;
 use std::{fs::File, io::Read};
 
 fn write_to_file(output: String) -> Result<(), std::io::Error> {
-    let mut file = File::create("output.txt")?;
+    let mut file = File::create("./output.txt")?;
     file.write_all(output.as_bytes())?;
     Ok(())
 }
