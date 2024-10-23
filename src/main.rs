@@ -1,11 +1,13 @@
-use std::process::Command;
 use std::fs::File;
 use std::io::Write;
+use std::process::Command;
 
 fn main() {
     // 执行系统命令
-    let output = Command::new("echo")
-        .arg("Hello, world!")
+    let output = Command::new("birdc")
+        .arg("s")
+        .arg("o")
+        .arg("s")
         .output()
         .expect("Failed to execute command");
 
@@ -14,7 +16,9 @@ fn main() {
 
     // 打开文件并写入输出
     let mut file = File::create("output.txt").expect("Failed to create file");
-    file.write_all(stdout.as_bytes()).expect("Failed to write to file");
+    file.write_all(stdout.as_bytes())
+        .expect("Failed to write to file");
 
+    println!("{}", stdout);
     println!("Command output saved to output.txt");
 }
