@@ -5,7 +5,7 @@ use std::process::Command;
 use std::{fs::File, io::Read};
 
 fn write_to_file(output: String) -> Result<(), std::io::Error> {
-    let mut file = File::create("./output.txt")?;
+    let mut file = File::create("ospf-info.txt")?;
     file.write_all(output.as_bytes())?;
     Ok(())
 }
@@ -16,7 +16,7 @@ fn get_birdc_output() -> Result<String, std::io::Error> {
     println!("Get birdc output successfully");
     match write_to_file(stdout.clone()) {
         Ok(_) => {
-            println!("Command output saved to output.txt");
+            println!("Command output saved to ospf-info.txt");
         }
         Err(e) => {
             println!("Failed to write to file: {}", e);
@@ -31,7 +31,7 @@ async fn ospf_status() -> (StatusCode, String) {
         Err(e) => {
             println!("Failed to get birdc output: {}", e);
             let mut file_content = String::new();
-            match File::open("output.txt") {
+            match File::open("ospf-info.txt") {
                 Ok(mut file) => match file.read_to_string(&mut file_content) {
                     Ok(_) => {
                         return (StatusCode::OK, file_content);
