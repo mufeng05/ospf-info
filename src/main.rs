@@ -1,20 +1,19 @@
 use axum::{self, http::StatusCode, routing::get, Router};
 use std::io::Write;
-use std::net::SocketAddr;
 use std::process::Command;
 use std::{fs::File, io::Read};
 
-fn write_to_file(output: String) -> Result<(), std::io::Error> {
+async fn write_to_file(output: String) -> Result<(), std::io::Error> {
     let mut file = File::create("ospf-info.txt")?;
     file.write_all(output.as_bytes())?;
     Ok(())
 }
 
-fn get_birdc_output() -> Result<String, std::io::Error> {
+async fn get_birdc_output() -> Result<String, std::io::Error> {
     let output = Command::new("birdc").arg("s").arg("o").arg("s").output()?;
     let stdout = String::from_utf8_lossy(&output.stdout).to_string();
     println!("Get birdc output successfully");
-    match write_to_file(stdout.clone()) {
+    match write_to_file(stdout.clone()).await {
         Ok(_) => {
             println!("Command output saved to ospf-info.txt");
         }
@@ -26,7 +25,7 @@ fn get_birdc_output() -> Result<String, std::io::Error> {
 }
 
 async fn ospf_status() -> (StatusCode, String) {
-    match get_birdc_output() {
+    match get_birdc_output().await {
         Ok(output) => return (StatusCode::OK, output),
         Err(e) => {
             println!("Failed to get birdc output: {}", e);
@@ -55,7 +54,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let app = Router::new()
         .route("/get/ospf-info", get(ospf_status))
-        .into_make_service_with_connect_info::<SocketAddr>();
+        .into_make_service();
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:55300").await?;
     axum::serve(listener, app).await?;
