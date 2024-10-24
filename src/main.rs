@@ -1,9 +1,9 @@
 use axum::{self, http::StatusCode, routing::get, Router};
+use flexi_logger::Logger;
+use log::{error, info, warn};
 use std::io::Write;
 use std::process::Command;
 use std::{fs::File, io::Read};
-use flexi_logger::Logger;
-use log::{info, warn, error};
 
 async fn write_to_file(output: String) -> Result<(), std::io::Error> {
     let mut file = File::create("ospf-info.txt")?;
