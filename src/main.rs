@@ -14,10 +14,10 @@ async fn write_to_file(output: String) -> Result<(), std::io::Error> {
 async fn get_birdc_output() -> Result<String, std::io::Error> {
     let output = Command::new("birdc").arg("s").arg("o").arg("s").output()?;
     let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-    info!("Get birdc output successfully");
+    // info!("Get birdc output successfully");
     match write_to_file(stdout.clone()).await {
         Ok(_) => {
-            info!("Command output saved to ospf-info.txt");
+            // info!("Command output saved to ospf-info.txt");
         }
         Err(e) => {
             warn!("Failed to write to file: {}", e);
@@ -35,7 +35,7 @@ async fn ospf_status() -> (StatusCode, String) {
             match File::open("ospf-info.txt") {
                 Ok(mut file) => match file.read_to_string(&mut file_content) {
                     Ok(_) => {
-                        info!("Get output from file successfully");
+                        // info!("Get output from file successfully");
                         return (StatusCode::OK, file_content);
                     }
                     Err(read_err) => {
