@@ -1,10 +1,10 @@
 [package]
 name = "ospf-info"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 
 [dependencies]
-axum = "0.8.1"
-flexi_logger = "0.29.4"
-log = "0.4.22"
-tokio = { version = "1.41.0", features = ["macros", "rt-multi-thread"] }
+axum = "0.8.4"
+flexi_logger = "0.31.2"
+log = "0.4.27"
+tokio = { version = "1.47.1", features = ["macros", "rt-multi-thread"] }
