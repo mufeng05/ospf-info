@@ -1,64 +1,88 @@
-use axum::{self, http::StatusCode, routing::get, Router};
-use flexi_logger::Logger;
+use anyhow::Result;
+use axum::{Router, http::StatusCode, routing};
+use flexi_logger::{Logger, writers::LogWriter};
 use log::{error, info, warn};
-use std::io::Write;
-use std::process::Command;
-use std::{fs::File, io::Read};
+use std::process::Command as StdCommand;
+use tokio::{
+    fs::File,
+    io::{AsyncReadExt, AsyncWriteExt},
+    net::TcpListener,
+    process::Command,
+};
 
-async fn write_to_file(output: String) -> Result<(), std::io::Error> {
-    let mut file = File::create("ospf-info.txt")?;
-    file.write_all(output.as_bytes())?;
+struct OpLogWriter;
+
+impl LogWriter for OpLogWriter {
+    fn write(
+        &self,
+        _now: &mut flexi_logger::DeferredNow,
+        record: &log::Record,
+    ) -> std::io::Result<()> {
+        let content = format!(
+            "{} [{}] {}",
+            record.level(),
+            record.module_path().unwrap_or("<unnamed>"),
+            record.args()
+        );
+        // TODO: use tokio
+        StdCommand::new("logger").arg(content).status()?;
+        Ok(())
+    }
+
+    fn flush(&self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+async fn write_to_file(output: &str) -> Result<()> {
+    let mut file = File::create("/tmp/ospf-info.txt").await?;
+    file.write_all(output.as_bytes()).await?;
     Ok(())
 }
 
-async fn get_birdc_output() -> Result<String, std::io::Error> {
-    let output = Command::new("birdc").arg("s").arg("o").arg("s").output()?;
+async fn read_from_file() -> Result<String> {
+    let mut file = File::open("/tmp/ospf-info.txt").await?;
+    let mut content = String::new();
+    file.read_to_string(&mut content).await?;
+    Ok(content)
+}
+
+async fn get_birdc_output() -> Result<String> {
+    let output = Command::new("birdc")
+        .arg("s")
+        .arg("o")
+        .arg("s")
+        .output()
+        .await?;
     let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-    // info!("Get birdc output successfully");
-    match write_to_file(stdout.clone()).await {
-        Ok(_) => {
-            // info!("Command output saved to ospf-info.txt");
-        }
-        Err(e) => {
-            warn!("Failed to write to file: {}", e);
-        }
-    }
+    write_to_file(&stdout).await?;
     Ok(stdout)
 }
 
-async fn ospf_status() -> (StatusCode, String) {
+async fn ospf_info() -> (StatusCode, String) {
     match get_birdc_output().await {
-        Ok(output) => return (StatusCode::OK, output),
+        Ok(output) => (StatusCode::OK, output),
         Err(e) => {
-            warn!("Failed to get birdc output: {}", e);
-            let mut file_content = String::new();
-            match File::open("ospf-info.txt") {
-                Ok(mut file) => match file.read_to_string(&mut file_content) {
-                    Ok(_) => {
-                        // info!("Get output from file successfully");
-                        return (StatusCode::OK, file_content);
-                    }
-                    Err(read_err) => {
-                        error!("Failed to read from file: {}", read_err);
-                    }
-                },
-                Err(open_err) => {
-                    error!("Failed to open file: {}", open_err);
-                }
+            warn!("failed to get birdc output: {}", e);
+            match read_from_file()
+                .await
+                .inspect_err(|e| error!("failed to open file: {}", e))
+            {
+                Ok(content) => (StatusCode::OK, content),
+                Err(_) => (StatusCode::INTERNAL_SERVER_ERROR, String::new()),
             }
-            return (StatusCode::INTERNAL_SERVER_ERROR, String::new());
         }
     }
 }
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    Logger::try_with_str("info")?.start()?;
-    info!("Starting server on");
-    let app = Router::new()
-        .route("/get/ospf-info", get(ospf_status))
-        .into_make_service();
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:55300").await?;
+async fn main() -> Result<()> {
+    Logger::try_with_str("info")?
+        .log_to_writer(Box::new(OpLogWriter))
+        .start()?;
+    info!("ospf info service started");
+    let app = Router::new().route("/get/ospf-info", routing::get(ospf_info));
+    let listener = TcpListener::bind("0.0.0.0:55300").await?;
     axum::serve(listener, app).await?;
     Ok(())
 }
